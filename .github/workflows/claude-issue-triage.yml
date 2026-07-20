@@ -1,0 +1,67 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    # Solo procesar issues abiertos y que no provengan de bots (evita ruido y bucles).
+    if: github.event.issue.state == 'open' && github.event.issue.user.type != 'Bot'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write # Necesario para aplicar labels y publicar el comentario de diagnóstico
+      id-token: write # Requerido por la autenticación OIDC del action
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Issue Triage
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: '--allowed-tools "Bash(gh label list:*),Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Read,Grep,Glob"'
+          prompt: |
+            Eres el responsable de triaje de issues de este repositorio (un Tetris en
+            JavaScript vanilla: index.html, style.css, game.js). Debes analizar el issue
+            número ${{ github.event.issue.number }} del repositorio ${{ github.repository }}.
+
+            Sigue estos pasos:
+
+            1. Lee el título y el cuerpo del issue con:
+               `gh issue view ${{ github.event.issue.number }}`
+               Revisa también los comentarios existentes del issue.
+
+            2. Obtén las labels disponibles del repositorio con:
+               `gh label list`
+
+            3. Selecciona las labels que apliquen al issue. IMPORTANTE: usa ÚNICAMENTE
+               labels que ya existan en el repositorio; NO crees labels nuevas. Aplícalas
+               con:
+               `gh issue edit ${{ github.event.issue.number }} --add-label "<label1>,<label2>"`
+
+            4. Explora el código relevante (game.js, index.html, style.css) para
+               contextualizar el problema antes de diagnosticar.
+
+            5. Publica UN comentario en español en el issue con un DIAGNÓSTICO GENERAL,
+               usando `gh issue comment ${{ github.event.issue.number }} --body "..."`.
+               El diagnóstico debe incluir:
+               - **Resumen**: qué pide o reporta el issue en una o dos frases.
+               - **Archivos/componentes probablemente implicados**.
+               - **Causa hipotética o consideraciones técnicas**.
+               - **Pistas para la solución** (enfoque a seguir, NO escribas todavía el
+                 código de la solución).
+               Empieza el comentario con la marca `<!-- claude-triage -->` para poder
+               identificarlo.
+
+            Reglas:
+            - Escribe siempre en español y sé conciso.
+            - Si al revisar los comentarios detectas que ya existe un comentario de
+              diagnóstico previo (contiene `<!-- claude-triage -->`), NO dupliques: en su
+              lugar publica un comentario actualizando/complementando el diagnóstico
+              anterior, y no vuelvas a añadir labels que ya estén asignadas.
