@@ -30,6 +30,8 @@ const PIECES = [
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 
+const PIECE_NAMES = [null, 'I', 'O', 'T', 'S', 'Z', 'J', 'L', 'Tuerca'];
+
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
@@ -42,8 +44,9 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggle = document.getElementById('theme-toggle');
+const overlayStats = document.getElementById('overlay-stats');
 
-let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, pieceCounts;
 let gridColor = '#22222e';
 
 function applyTheme(theme) {
@@ -170,6 +173,7 @@ function spawn() {
     endGame();
     return;
   }
+  pieceCounts[current.type]++;
   next = randomPiece();
   drawNext();
 }
@@ -247,7 +251,51 @@ function endGame() {
   cancelAnimationFrame(animId);
   overlayTitle.textContent = 'GAME OVER';
   overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
+  renderStats();
   overlay.classList.remove('hidden');
+}
+
+function pieceIcon(type) {
+  const shape = PIECES[type];
+  // recortar filas/columnas vacías para un icono compacto
+  let minR = shape.length, maxR = -1, minC = shape[0].length, maxC = -1;
+  for (let r = 0; r < shape.length; r++)
+    for (let c = 0; c < shape[r].length; c++)
+      if (shape[r][c]) {
+        if (r < minR) minR = r;
+        if (r > maxR) maxR = r;
+        if (c < minC) minC = c;
+        if (c > maxC) maxC = c;
+      }
+  const rows = maxR - minR + 1;
+  const cols = maxC - minC + 1;
+  let cells = '';
+  for (let r = minR; r <= maxR; r++)
+    for (let c = minC; c <= maxC; c++)
+      cells += shape[r][c]
+        ? `<span class="stat-cell" style="background:${COLORS[type]}"></span>`
+        : `<span class="stat-cell"></span>`;
+  return `<span class="stat-piece-icon" style="grid-template-columns:repeat(${cols},1fr);` +
+    `aspect-ratio:${cols}/${rows}">${cells}</span>`;
+}
+
+function renderStats() {
+  const total = pieceCounts.reduce((a, b) => a + b, 0);
+  const pieceRows = PIECE_NAMES
+    .map((name, type) => type)
+    .slice(1)
+    .map(type =>
+      `<div class="stat-piece">${pieceIcon(type)}` +
+      `<span class="stat-piece-count">${pieceCounts[type]}</span></div>`)
+    .join('');
+
+  overlayStats.innerHTML =
+    `<div class="stat-line"><span>Nivel</span><span>${level}</span></div>` +
+    `<div class="stat-line"><span>Líneas</span><span>${lines}</span></div>` +
+    `<div class="stat-line"><span>Piezas totales</span><span>${total}</span></div>` +
+    `<div class="stat-pieces-title">Piezas</div>` +
+    `<div class="stat-pieces">${pieceRows}</div>`;
+  overlayStats.classList.remove('hidden');
 }
 
 function togglePause() {
@@ -260,6 +308,7 @@ function togglePause() {
     cancelAnimationFrame(animId);
     overlayTitle.textContent = 'PAUSA';
     overlayScore.textContent = '';
+    overlayStats.classList.add('hidden');
     overlay.classList.remove('hidden');
   }
 }
@@ -291,9 +340,11 @@ function init() {
   dropInterval = 1000;
   dropAccum = 0;
   lastTime = performance.now();
+  pieceCounts = new Array(PIECE_NAMES.length).fill(0);
   next = randomPiece();
   spawn();
   updateHUD();
+  overlayStats.classList.add('hidden');
   overlay.classList.add('hidden');
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
