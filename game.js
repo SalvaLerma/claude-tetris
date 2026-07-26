@@ -32,6 +32,9 @@ const LINE_SCORES = [0, 100, 300, 500, 800];
 
 const PIECE_NAMES = [null, 'I', 'O', 'T', 'S', 'Z', 'J', 'L', 'Tuerca'];
 
+const GRAVITY_EFFECT_CHANCE = 0.01;
+const EARTH_GRAVITY = 9.8; // m/s², aceleración de la gravedad terrestre
+
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
@@ -45,8 +48,10 @@ const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggle = document.getElementById('theme-toggle');
 const overlayStats = document.getElementById('overlay-stats');
+const gravityToast = document.getElementById('gravity-toast');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, pieceCounts;
+let gravityToastTimer = null;
 let gridColor = '#22222e';
 
 function applyTheme(theme) {
@@ -138,6 +143,44 @@ function clearLines() {
   }
 }
 
+function showGravityToast() {
+  gravityToast.textContent = `⚡ ¡Efecto gravedad! g = ${EARTH_GRAVITY} m/s²`;
+  gravityToast.classList.add('show');
+  clearTimeout(gravityToastTimer);
+  gravityToastTimer = setTimeout(() => {
+    gravityToast.classList.remove('show');
+  }, 2000);
+}
+
+function hasGaps() {
+  for (let c = 0; c < COLS; c++) {
+    let seenFilled = false;
+    for (let r = 0; r < ROWS; r++) {
+      if (board[r][c]) seenFilled = true;
+      else if (seenFilled) return true;
+    }
+  }
+  return false;
+}
+
+function collapseColumns() {
+  for (let c = 0; c < COLS; c++) {
+    const values = [];
+    for (let r = 0; r < ROWS; r++) {
+      if (board[r][c]) values.push(board[r][c]);
+    }
+    const column = new Array(ROWS - values.length).fill(0).concat(values);
+    for (let r = 0; r < ROWS; r++) board[r][c] = column[r];
+  }
+}
+
+function applyGravityCollapse() {
+  do {
+    collapseColumns();
+    clearLines();
+  } while (hasGaps());
+}
+
 function ghostY() {
   let gy = current.y;
   while (!collide(current.shape, current.x, gy + 1)) gy++;
@@ -163,7 +206,12 @@ function softDrop() {
 
 function lockPiece() {
   merge();
-  clearLines();
+  if (Math.random() < GRAVITY_EFFECT_CHANCE) {
+    showGravityToast();
+    applyGravityCollapse();
+  } else {
+    clearLines();
+  }
   spawn();
 }
 
@@ -346,6 +394,8 @@ function init() {
   updateHUD();
   overlayStats.classList.add('hidden');
   overlay.classList.add('hidden');
+  clearTimeout(gravityToastTimer);
+  gravityToast.classList.remove('show');
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
 }
