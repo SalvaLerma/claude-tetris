@@ -14,6 +14,7 @@
         <input type="checkbox" id="theme-toggle" />
         <span class="slider"></span>
       </label>
+      <button id="settings-btn" class="settings-btn" title="Ajustes" aria-label="Ajustes">⚙</button>
     </div>
     <div class="game-container">
       <canvas id="board" width="300" height="600"></canvas>
@@ -57,6 +58,53 @@
         <p id="overlay-score"></p>
         <div id="overlay-stats" class="overlay-stats hidden"></div>
         <button id="restart-btn">Reiniciar</button>
+      </div>
+    </div>
+
+    <div id="settings-overlay" class="overlay settings-overlay hidden">
+      <div class="overlay-box settings-box">
+        <p class="settings-title">AJUSTES</p>
+        <div class="settings-list">
+          <div class="setting-row">
+            <label for="setting-gravity">Probabilidad de efecto gravedad</label>
+            <div class="setting-control">
+              <input type="range" id="setting-gravity" min="0" max="30" step="1" />
+              <span class="setting-value" id="setting-gravity-value">1%</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <label for="setting-nut">Probabilidad de pieza Tuerca</label>
+            <div class="setting-control">
+              <input type="range" id="setting-nut" min="0" max="30" step="1" />
+              <span class="setting-value" id="setting-nut-value">8%</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <label for="setting-start-speed">Velocidad inicial de caída</label>
+            <div class="setting-control">
+              <input type="range" id="setting-start-speed" min="300" max="1500" step="50" />
+              <span class="setting-value" id="setting-start-speed-value">1000 ms</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <label for="setting-speed-step">Incremento de velocidad por nivel</label>
+            <div class="setting-control">
+              <input type="range" id="setting-speed-step" min="0" max="200" step="10" />
+              <span class="setting-value" id="setting-speed-step-value">90 ms</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <label for="setting-min-speed">Velocidad mínima de caída</label>
+            <div class="setting-control">
+              <input type="range" id="setting-min-speed" min="50" max="500" step="10" />
+              <span class="setting-value" id="setting-min-speed-value">100 ms</span>
+            </div>
+          </div>
+        </div>
+        <div class="settings-actions">
+          <button id="settings-reset-btn" class="secondary-btn">Restablecer</button>
+          <button id="settings-close-btn">Cerrar</button>
+        </div>
       </div>
     </div>
   </div>

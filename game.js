@@ -32,8 +32,30 @@ const LINE_SCORES = [0, 100, 300, 500, 800];
 
 const PIECE_NAMES = [null, 'I', 'O', 'T', 'S', 'Z', 'J', 'L', 'Tuerca'];
 
-const GRAVITY_EFFECT_CHANCE = 0.01;
 const EARTH_GRAVITY = 9.8; // m/s², aceleración de la gravedad terrestre
+
+const DEFAULT_CONFIG = {
+  gravityChance: 0.01,
+  nutChance: 0.08,
+  startSpeed: 1000,
+  speedStep: 90,
+  minSpeed: 100,
+};
+
+function loadConfig() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('tetrisConfig'));
+    return { ...DEFAULT_CONFIG, ...saved };
+  } catch {
+    return { ...DEFAULT_CONFIG };
+  }
+}
+
+function saveConfig() {
+  localStorage.setItem('tetrisConfig', JSON.stringify(CONFIG));
+}
+
+let CONFIG = loadConfig();
 
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
@@ -49,6 +71,24 @@ const restartBtn = document.getElementById('restart-btn');
 const themeToggle = document.getElementById('theme-toggle');
 const overlayStats = document.getElementById('overlay-stats');
 const gravityToast = document.getElementById('gravity-toast');
+const settingsBtn = document.getElementById('settings-btn');
+const settingsOverlay = document.getElementById('settings-overlay');
+const settingsCloseBtn = document.getElementById('settings-close-btn');
+const settingsResetBtn = document.getElementById('settings-reset-btn');
+const settingInputs = {
+  gravity: document.getElementById('setting-gravity'),
+  nut: document.getElementById('setting-nut'),
+  startSpeed: document.getElementById('setting-start-speed'),
+  speedStep: document.getElementById('setting-speed-step'),
+  minSpeed: document.getElementById('setting-min-speed'),
+};
+const settingValueEls = {
+  gravity: document.getElementById('setting-gravity-value'),
+  nut: document.getElementById('setting-nut-value'),
+  startSpeed: document.getElementById('setting-start-speed-value'),
+  speedStep: document.getElementById('setting-speed-step-value'),
+  minSpeed: document.getElementById('setting-min-speed-value'),
+};
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, pieceCounts;
 let gravityToastTimer = null;
@@ -77,8 +117,7 @@ function createBoard() {
 }
 
 function randomPiece() {
-  const NUT_CHANCE = 0.08;
-  const type = Math.random() < NUT_CHANCE ? 8 : Math.floor(Math.random() * 7) + 1;
+  const type = Math.random() < CONFIG.nutChance ? 8 : Math.floor(Math.random() * 7) + 1;
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
 }
@@ -138,7 +177,7 @@ function clearLines() {
     lines += cleared;
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
-    dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+    recalcDropInterval();
     updateHUD();
   }
 }
@@ -204,9 +243,13 @@ function softDrop() {
   }
 }
 
+function recalcDropInterval() {
+  dropInterval = Math.max(CONFIG.minSpeed, CONFIG.startSpeed - (level - 1) * CONFIG.speedStep);
+}
+
 function lockPiece() {
   merge();
-  if (Math.random() < GRAVITY_EFFECT_CHANCE) {
+  if (Math.random() < CONFIG.gravityChance) {
     showGravityToast();
     applyGravityCollapse();
   } else {
@@ -385,7 +428,7 @@ function init() {
   level = 1;
   paused = false;
   gameOver = false;
-  dropInterval = 1000;
+  dropInterval = CONFIG.startSpeed;
   dropAccum = 0;
   lastTime = performance.now();
   pieceCounts = new Array(PIECE_NAMES.length).fill(0);
@@ -426,5 +469,71 @@ document.addEventListener('keydown', e => {
 });
 
 restartBtn.addEventListener('click', init);
+
+function populateSettingsUI() {
+  settingInputs.gravity.value = Math.round(CONFIG.gravityChance * 100);
+  settingValueEls.gravity.textContent = `${settingInputs.gravity.value}%`;
+  settingInputs.nut.value = Math.round(CONFIG.nutChance * 100);
+  settingValueEls.nut.textContent = `${settingInputs.nut.value}%`;
+  settingInputs.startSpeed.value = CONFIG.startSpeed;
+  settingValueEls.startSpeed.textContent = `${CONFIG.startSpeed} ms`;
+  settingInputs.speedStep.value = CONFIG.speedStep;
+  settingValueEls.speedStep.textContent = `${CONFIG.speedStep} ms`;
+  settingInputs.minSpeed.value = CONFIG.minSpeed;
+  settingValueEls.minSpeed.textContent = `${CONFIG.minSpeed} ms`;
+}
+
+function bindPercentSetting(input, valueEl, key) {
+  input.addEventListener('input', () => {
+    CONFIG[key] = Number(input.value) / 100;
+    valueEl.textContent = `${input.value}%`;
+    saveConfig();
+  });
+}
+
+function bindMsSetting(input, valueEl, key) {
+  input.addEventListener('input', () => {
+    CONFIG[key] = Number(input.value);
+    valueEl.textContent = `${input.value} ms`;
+    saveConfig();
+    recalcDropInterval();
+  });
+}
+
+bindPercentSetting(settingInputs.gravity, settingValueEls.gravity, 'gravityChance');
+bindPercentSetting(settingInputs.nut, settingValueEls.nut, 'nutChance');
+bindMsSetting(settingInputs.startSpeed, settingValueEls.startSpeed, 'startSpeed');
+bindMsSetting(settingInputs.speedStep, settingValueEls.speedStep, 'speedStep');
+bindMsSetting(settingInputs.minSpeed, settingValueEls.minSpeed, 'minSpeed');
+
+let wasPlayingBeforeSettings = false;
+
+function openSettings() {
+  populateSettingsUI();
+  wasPlayingBeforeSettings = !paused && !gameOver;
+  if (wasPlayingBeforeSettings) {
+    paused = true;
+    cancelAnimationFrame(animId);
+  }
+  settingsOverlay.classList.remove('hidden');
+}
+
+function closeSettings() {
+  settingsOverlay.classList.add('hidden');
+  if (wasPlayingBeforeSettings) {
+    paused = false;
+    lastTime = performance.now();
+    loop(lastTime);
+  }
+}
+
+settingsBtn.addEventListener('click', openSettings);
+settingsCloseBtn.addEventListener('click', closeSettings);
+settingsResetBtn.addEventListener('click', () => {
+  CONFIG = { ...DEFAULT_CONFIG };
+  saveConfig();
+  populateSettingsUI();
+  recalcDropInterval();
+});
 
 init();
